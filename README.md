@@ -63,13 +63,28 @@ For the viewer to work correctly, your Immich API Key needs the following permis
     ALBUM_ID=your_album_uuid_here
     ```
 
-3.  **Run:**
+3.  **Verify `docker-compose.yml` (Optional):**
+    Ensure your `docker-compose.yml` looks like this:
+    ```yaml
+    services:
+      immich-viewer:
+        image: ken1kg/immich-viewer:latest
+        build: .
+        container_name: immich-viewer
+        restart: unless-stopped
+        ports:
+          - "3000:3000"
+        env_file:
+          - .env
+    ```
+
+4.  **Run:**
     Open a terminal in the project folder and run:
     ```bash
     docker-compose up -d --build
     ```
 
-4.  **Access:** Open `http://your-server-ip:3000` in your browser.
+5.  **Access:** Open `http://your-server-ip:3000` in your browser.
 
 ## Configuration Reference (.env)
 
