@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- Viewport for full screen mobile web app -->
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <!-- iOS Fullscreen / Web App Capable -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Immich Viewer">
+
+    <title>Immich Viewer</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Configuration will be injected here by the server -->
+    <!-- CONFIG_INJECTION -->
+</head>
+
+<body ontouchstart=""> <!-- Empty ontouchstart speeds up click events on iOS -->
+
+    <div id="app">
+        <!-- Slideshow Container -->
+        <div id="slideshow" class="slideshow">
+            <!-- Background layer (blurred) -->
+            <img id="bg-a" class="slide-bg active" alt="">
+            <img id="bg-b" class="slide-bg" alt="">
+            <!-- Foreground layer (sharp) -->
+            <img id="slide-a" class="slide active" alt="">
+            <img id="slide-b" class="slide" alt="">
+        </div>
+
+        <!-- Clock Overlay (Optional) -->
+        <div id="clock-overlay" class="hidden">
+            <div id="time">00:00</div>
+            <div id="date">Monday, Jan 1</div>
+        </div>
+
+        <!-- Loading / Status Overlay -->
+        <div id="status-overlay">
+            <div class="loader"></div>
+            <div id="status-text">Connecting to Immich...</div>
+            <button id="retry-btn" class="hidden" onclick="location.reload()">Retry</button>
+        </div>
+
+        <!-- Fullscreen helper for iOS -->
+        <div id="fs-instructions" class="hidden">
+            <div class="fs-card">
+                <h3>Enable Fullscreen</h3>
+                <p>To use this frame in fullscreen mode:</p>
+                <ol>
+                    <li>Tap the Share button <span class="icon">⎋</span></li>
+                    <li>Select "Add to Home Screen" <span class="icon">⊞</span></li>
+                    <li>Launch from your Home Screen</li>
+                </ol>
+                <button id="dismiss-fs">Dismiss</button>
+            </div>
+        </div>
+
+        <!-- Controls (hidden by default, show on tap) -->
+        <div id="controls" class="hidden">
+            <button id="fs-btn">Fullscreen</button>
+            <button id="refresh-btn">Refresh</button>
+            <button id="nosleep-btn">Prevent Sleep</button>
+        </div>
+
+        <!-- NoSleep Helper: Tiny, silent, looping video -->
+        <video id="nosleep-video" playsinline webkit-playsinline muted loop
+            style="display:none; width: 1px; height: 1px; opacity: 0.01;">
+            <source
+                src="data:video/mp4;base64,AAAAHGZ0eXBNNEVDAAAAAE1ORVYAAAACAAACAAAAAAttb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUAAAQzbW/vdgAAABxtdmhkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABQAAAiRtZGF0AAAAGHgAAAABAAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAeAAAAA2hkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABKAAAAIG1pbmYAAAAUdmloZAAAAAEAAAAAAAAAAAAAAQAACRlkaW5mAAAAHXVybCAAAAAAAAAAQQAAAAAAAAAAAAAA"
+                type="video/mp4">
+        </video>
+    </div>
+
+    <!-- Legacy API Polyfills (minimal) -->
+    <script src="app.js?v=2"></script>
+</body>
+
+</html>

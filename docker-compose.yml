@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  immich-viewer:
+    build: .
+    container_name: immich-viewer
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    # environment:
+    #   - IMMICH_URL=... (Overridden by .env file)
