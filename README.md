@@ -52,8 +52,11 @@ For the viewer to work correctly, your Immich API Key needs the following permis
 
 ### Quick Start (Docker)
 
-1.  **Get the project:**
-    Download or clone this repository to your computer.
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/ken1kg/immich-viewer.git
+    cd immich-viewer
+    ```
 
 2.  **Configure environment:**
     Create a file named `.env` in the project folder and add your details:
@@ -68,7 +71,6 @@ For the viewer to work correctly, your Immich API Key needs the following permis
     ```yaml
     services:
       immich-viewer:
-        image: ken1kg/immich-viewer:latest
         build: .
         container_name: immich-viewer
         restart: unless-stopped
