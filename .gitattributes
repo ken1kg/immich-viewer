@@ -1,0 +1,13 @@
+# Enforce default auto-normalization
+* text=auto
+
+# Explicitly declare text files to ensure they are normalized
+*.js text
+*.json text
+*.css text
+*.html text
+*.md text
+.env.example text
+.gitignore text
+Dockerfile text
+docker-compose.yml text
