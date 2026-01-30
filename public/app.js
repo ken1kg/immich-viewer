@@ -50,7 +50,7 @@
 
     function log(msg) {
         if (CONFIG.debug) {
-            console.log('[ImmichFrame] ' + msg);
+            console.log('[ImmichViewer] ' + msg);
         }
     }
 
