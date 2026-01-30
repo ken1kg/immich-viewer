@@ -5,14 +5,14 @@
 >
 > This project was developed with the assistance of **Google Antigravity**. As an AI-assisted creation, there may be occasional "hiccups" or oversights in code and documentation.
 
-A lightweight, beautiful photo frame viewer for [Immich](https://immich.app) designed specifically for legacy devices like the iPad Mini or iPad Mini 2 (iOS 9-12).
+A lightweight, beautiful web-based photo frame viewer for [Immich](https://immich.app) designed specifically for legacy devices like the iPad 2 or iPad Mini (iOS 9-12). You can also use it for newer devices if you prefer a simpler interface. It is a great way to repurpose old tablets and phones into digital photo frames.
 
 ## Features
 
 - **Legacy Browser Support:** Optimization for old Safari (iOS 9+) using ES5 JavaScript and legacy-compatible CSS.
 - **Ambient Background:** Automatically blurred, color-matched backgrounds for photos (replaces black bars).
 - **Manual Navigation:** Swipe (mobile) or Arrow Keys (desktop) to browse photos manually.
-- **Robust NoSleep:** Advanced screen keep-awake functionality with visual feedback and toggle support.
+- **Robust NoSleep:** Screen keep-awake functionality.
 - **Resilient Watchdog:** Auto-reloads on network failure or slideshow stalls to ensure maintenance-free operation.
 - **Lightweight:** No heavy frameworks, minimal network usage.
 
@@ -27,16 +27,16 @@ This project implements a **secure proxy architecture** to protect your Immich i
 5.  **Privacy:** No external calls. Everything runs locally on your network.
 
 > [!NOTE]
-> **Legacy Security Trade-off:** To support old devices like the iPad Mini 2 (which struggle with modern security headers), **Strict-Transport-Security (HSTS)** and **Strict Content-Security-Policy (CSP)** are disabled by default.
+> **Legacy Security Trade-off:** To support old devices like the iPad 2 and iPad Mini (which struggle with modern security headers), **Strict-Transport-Security (HSTS)** and **Strict Content-Security-Policy (CSP)** are disabled by default.
 >
-> **Assessment:** This is secure for **Local Network (LAN)** use behind a firewall. Do not expose this directly to the public internet without a reverse proxy (like Nginx/Traefik).
+> **Security Note:** This is secure for **Local Network (LAN)** use behind a firewall. Do not expose this directly to the public internet without a reverse proxy (like Nginx/Traefik) or VPN, however, note that this project is not intended for public internet access.
 
 ## Setup
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- An Immich Server
+- An Existing Immich Instance
 - An Immich API Key
 
 ### API Key Permissions
@@ -111,7 +111,7 @@ Everything is configured via the `.env` file:
 
 1.  **Connect:** Open Safari and go to your viewer URL (e.g., `http://192.168.1.50:3000`).
 2.  **Add to Home (Critical):** Tap the **Share** button (Square with up arrow) -> **Add to Home Screen**.
-3.  **Launch:** Open the new "Immich Frame" icon from your home screen.
+3.  **Launch:** Open the new "Immich Viewer" icon from your home screen.
     *   *This triggers strict full-screen mode, hiding the browser UI.*
 4.  **Prevent Sleep:**
     *   Tap the screen to show controls.
