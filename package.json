@@ -1,6 +1,7 @@
 {
   "name": "immich-legacy-viewer",
   "version": "1.0.0",
+  "license": "GPL-3.0-only",
   "description": "Lightweight Immich photo viewer for legacy devices",
   "main": "server.js",
   "scripts": {

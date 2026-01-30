@@ -2,6 +2,8 @@
 
 > [!IMPORTANT]
 > **Disclaimer:** This project is an independent community creation and is **not affiliated with, endorsed by, or connected to the official Immich project**.
+>
+> This project was developed with the assistance of **Google Antigravity**. As an AI-assisted creation, there may be occasional "hiccups" or oversights in code and documentation.
 
 A lightweight, beautiful photo frame viewer for [Immich](https://immich.app) designed specifically for legacy devices like the iPad Mini or iPad Mini 2 (iOS 9-12).
 
@@ -136,3 +138,9 @@ You can manually browse photos at any time. The auto-advance timer will reset af
 
 - **Button says "Err: AbortError":**
     - This is normal if you toggle "Prevent Sleep" off quickly. It means the video start was cancelled.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+
