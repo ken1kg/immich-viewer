@@ -493,13 +493,13 @@
     }
 
     // --- Music Player ---
-    // --- Music Player ---
     var musicPlayer = {
         el: {
             btn: document.getElementById('music-btn'),
             overlay: document.getElementById('music-overlay'),
             closeBtn: document.getElementById('close-music'),
             shuffleAllBtn: document.getElementById('shuffle-all-btn'),
+            shuffleFolderBtn: document.getElementById('shuffle-folder-btn'),
             breadcrumb: document.getElementById('music-breadcrumb'),
             list: document.getElementById('music-list'),
             nowPlaying: document.getElementById('now-playing'),
@@ -509,12 +509,16 @@
             mcPlayPause: document.getElementById('mc-play-pause'),
             mcNext: document.getElementById('mc-next'),
             mcPrev: document.getElementById('mc-prev'),
-            mcRepeat: document.getElementById('mc-repeat')
+            mcRepeat: document.getElementById('mc-repeat'),
+            mcShuffle: document.getElementById('mc-shuffle')
         },
         currentPath: '',
-        playlist: [],
-        currentIndex: -1,
-        repeatMode: 'OFF', // OFF, ONE, FOLDER, ALL
+        browsingFiles: [],     // Current folder being viewed
+        originalPlaylist: [],   // Sequential tracks (source)
+        playingPlaylist: [],   // Actual tracks being navigated (can be shuffled)
+        playingIndex: -1,
+        repeatMode: 'OFF',     // OFF, ONE, LOOP
+        shuffleActive: false,
 
         init: function () {
             var self = this;
@@ -544,6 +548,11 @@
                 self.shuffleAll();
             });
 
+            this.el.shuffleFolderBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                self.shuffleCurrentFolder();
+            });
+
             this.el.audio.addEventListener('play', function () {
                 var src = self.el.audio.currentSrc;
                 var filename = decodeURIComponent(src.split('/').pop());
@@ -570,6 +579,7 @@
             this.el.mcNext.addEventListener('click', function (e) { e.stopPropagation(); self.nextTrack(); });
             this.el.mcPrev.addEventListener('click', function (e) { e.stopPropagation(); self.prevTrack(); });
             this.el.mcRepeat.addEventListener('click', function (e) { e.stopPropagation(); self.cycleRepeatMode(); });
+            this.el.mcShuffle.addEventListener('click', function (e) { e.stopPropagation(); self.toggleShuffle(); });
         },
 
         show: function () { this.el.overlay.classList.remove('hidden'); },
@@ -587,7 +597,7 @@
                 if (xhr.status === 200) {
                     try {
                         var data = JSON.parse(xhr.responseText);
-                        self.playlist = data.files || [];
+                        self.browsingFiles = data.files || [];
                         self.renderList(data);
                     } catch (e) {
                         self.el.list.innerHTML = '<div class="err">Error parsing list</div>';
@@ -597,6 +607,16 @@
                 }
             };
             xhr.send();
+        },
+
+        shuffleCurrentFolder: function () {
+            if (this.browsingFiles.length === 0) return;
+            this.originalPlaylist = JSON.parse(JSON.stringify(this.browsingFiles));
+            this.playingPlaylist = shuffleArray(JSON.parse(JSON.stringify(this.browsingFiles)));
+            this.shuffleActive = true;
+            this.updateShuffleUI();
+            this.playIndex(0);
+            this.hide();
         },
 
         shuffleAll: function () {
@@ -610,9 +630,12 @@
                     try {
                         var data = JSON.parse(xhr.responseText);
                         if (data.files && data.files.length > 0) {
-                            self.playlist = shuffleArray(data.files);
-                            self.playFile(self.playlist[0].path);
-                            self.hide(); // Close overlay to show controls
+                            self.originalPlaylist = JSON.parse(JSON.stringify(data.files));
+                            self.playingPlaylist = shuffleArray(JSON.parse(JSON.stringify(data.files)));
+                            self.shuffleActive = true;
+                            self.updateShuffleUI();
+                            self.playIndex(0);
+                            self.hide();
                         } else {
                             alert('No music files found in library.');
                         }
@@ -622,6 +645,39 @@
                 }
             };
             xhr.send();
+        },
+
+        toggleShuffle: function () {
+            if (this.playingPlaylist.length === 0) return;
+            var currentTrack = this.playingPlaylist[this.playingIndex];
+            this.shuffleActive = !this.shuffleActive;
+
+            if (this.shuffleActive) {
+                // Shuffle: Randomize the rest based on original order
+                var remaining = [];
+                for (var i = 0; i < this.originalPlaylist.length; i++) {
+                    if (this.originalPlaylist[i].path !== currentTrack.path) {
+                        remaining.push(this.originalPlaylist[i]);
+                    }
+                }
+                this.playingPlaylist = [currentTrack].concat(shuffleArray(remaining));
+                this.playingIndex = 0;
+            } else {
+                // Unshuffle: Restore original order
+                this.playingPlaylist = JSON.parse(JSON.stringify(this.originalPlaylist));
+                for (var j = 0; j < this.playingPlaylist.length; j++) {
+                    if (this.playingPlaylist[j].path === currentTrack.path) {
+                        this.playingIndex = j;
+                        break;
+                    }
+                }
+            }
+            this.updateShuffleUI();
+        },
+
+        updateShuffleUI: function () {
+            if (this.shuffleActive) this.el.mcShuffle.classList.add('active');
+            else this.el.mcShuffle.classList.remove('active');
         },
 
         updateBreadcrumb: function (path) {
@@ -660,41 +716,60 @@
                     item.addEventListener('click', function () {
                         var type = item.getAttribute('data-type');
                         var path = item.getAttribute('data-path');
-                        if (type === 'file') self.playFile(path);
+                        if (type === 'file') self.startPlaybackFromList(path);
                         else self.loadDirectory(path);
                     });
                 })(items[k]);
             }
         },
 
-        playFile: function (path) {
-            this.el.audio.src = '/api/music/stream/' + encodeURIComponent(path);
-            this.el.audio.play();
-            for (var i = 0; i < this.playlist.length; i++) {
-                if (this.playlist[i].path === path) {
-                    this.currentIndex = i;
+        startPlaybackFromList: function (path) {
+            this.originalPlaylist = JSON.parse(JSON.stringify(this.browsingFiles));
+            this.shuffleActive = false; // Reset shuffle when picking a specific song
+            this.playingPlaylist = JSON.parse(JSON.stringify(this.originalPlaylist));
+            this.updateShuffleUI();
+
+            for (var i = 0; i < this.playingPlaylist.length; i++) {
+                if (this.playingPlaylist[i].path === path) {
+                    this.playIndex(i);
                     break;
                 }
             }
         },
 
+        playIndex: function (index) {
+            if (index < 0 || index >= this.playingPlaylist.length) return;
+            this.playingIndex = index;
+            var track = this.playingPlaylist[index];
+            this.el.audio.src = '/api/music/stream/' + encodeURIComponent(track.path);
+            this.el.audio.play();
+        },
+
         nextTrack: function () {
-            if (this.playlist.length === 0) return;
-            this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
-            this.playFile(this.playlist[this.currentIndex].path);
+            if (this.playingPlaylist.length === 0) return;
+            var next = this.playingIndex + 1;
+            if (next >= this.playingPlaylist.length) {
+                if (this.repeatMode === 'LOOP') next = 0;
+                else return;
+            }
+            this.playIndex(next);
         },
 
         prevTrack: function () {
-            if (this.playlist.length === 0) return;
-            this.currentIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
-            this.playFile(this.playlist[this.currentIndex].path);
+            if (this.playingPlaylist.length === 0) return;
+            var prev = this.playingIndex - 1;
+            if (prev < 0) {
+                if (this.repeatMode === 'LOOP') prev = this.playingPlaylist.length - 1;
+                else prev = 0;
+            }
+            this.playIndex(prev);
         },
 
         cycleRepeatMode: function () {
-            var modes = ['OFF', 'ONE', 'FOLDER', 'ALL'];
+            var modes = ['OFF', 'ONE', 'LOOP'];
             var currentIdx = modes.indexOf(this.repeatMode);
             this.repeatMode = modes[(currentIdx + 1) % modes.length];
-            var icons = { 'OFF': '🔁 Off', 'ONE': '🔂 One', 'FOLDER': '📂 Fold', 'ALL': '🌍 All' };
+            var icons = { 'OFF': '🔁 Off', 'ONE': '🔂 One', 'LOOP': '🔁 Loop' };
             this.el.mcRepeat.textContent = icons[this.repeatMode];
         },
 
@@ -702,10 +777,14 @@
             if (this.repeatMode === 'ONE') {
                 this.el.audio.currentTime = 0;
                 this.el.audio.play();
-            } else if (this.repeatMode !== 'OFF') {
+            } else if (this.repeatMode === 'LOOP') {
                 this.nextTrack();
-            } else {
-                this.el.mcOverlay.classList.add('hidden');
+            } else if (this.repeatMode === 'OFF') {
+                if (this.playingIndex < this.playingPlaylist.length - 1) {
+                    this.nextTrack();
+                } else {
+                    this.el.mcPlayPause.textContent = '▶️';
+                }
             }
         },
 

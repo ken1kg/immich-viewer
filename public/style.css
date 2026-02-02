@@ -326,13 +326,39 @@ body {
     padding: 5px 10px;
 }
 
-.breadcrumb {
+.music-breadcrumb-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 10px 15px;
     background: #2a2a2a;
+    border-bottom: 1px solid #333;
+}
+
+.breadcrumb {
+    padding: 0;
+    margin: 0;
     color: #aaa;
+    font-family: monospace;
     font-size: 0.9rem;
-    white-space: nowrap;
+    word-break: break-all;
     overflow-x: auto;
+}
+
+#shuffle-folder-btn {
+    background: #444;
+    border: none;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-left: 10px;
+}
+
+#shuffle-folder-btn:active {
+    background: #666;
 }
 
 .music-list {
@@ -428,6 +454,11 @@ body {
     font-size: 0.75rem !important;
     white-space: nowrap;
     padding: 0 5px;
+}
+
+#mc-shuffle.active {
+    color: #4a9eff;
+    opacity: 1;
 }
 
 /* Hide when inactive but show when music is playing */

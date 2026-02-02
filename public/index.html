@@ -44,6 +44,7 @@
             <button id="mc-prev">⏮</button>
             <button id="mc-play-pause">⏯</button>
             <button id="mc-next">⏭</button>
+            <button id="mc-shuffle" title="Shuffle On/Off">🔀</button>
             <button id="mc-repeat" title="Repeat Mode">🔁 Off</button>
         </div>
 
@@ -86,7 +87,10 @@
                         <button id="close-music">✕</button>
                     </div>
                 </div>
-                <div id="music-breadcrumb" class="breadcrumb">/</div>
+                <div class="music-breadcrumb-container">
+                    <div id="music-breadcrumb" class="breadcrumb">/</div>
+                    <button id="shuffle-folder-btn" class="icon-btn" title="Shuffle Current Folder">🔀 Folder</button>
+                </div>
                 <div id="music-list" class="music-list">
                     <!-- Populated by JavaScript -->
                 </div>
