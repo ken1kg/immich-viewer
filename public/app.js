@@ -276,6 +276,11 @@
         el.clockOverlay.style.top = pos.top;
         el.clockOverlay.style.left = pos.left;
         el.clockOverlay.style.textAlign = pos.textAlign;
+
+        // Move music controls to follow the clock
+        if (typeof musicPlayer !== 'undefined' && musicPlayer.moveMusicControls) {
+            musicPlayer.moveMusicControls();
+        }
     }
 
     // --- Reliability (NoSleep & Watchdog) ---
@@ -477,12 +482,259 @@
         fetchAssets(function (assets) {
             startSlideshow(assets);
         });
+
+        // Initialize music player (async check for availability)
+        musicPlayer.init();
     }
 
     function updateLastSlideTime() {
         lastSlideChange = Date.now();
         consecutiveFailures = 0; // Reset network errors on success
     }
+
+    // --- Music Player ---
+    // --- Music Player ---
+    var musicPlayer = {
+        el: {
+            btn: document.getElementById('music-btn'),
+            overlay: document.getElementById('music-overlay'),
+            closeBtn: document.getElementById('close-music'),
+            shuffleAllBtn: document.getElementById('shuffle-all-btn'),
+            breadcrumb: document.getElementById('music-breadcrumb'),
+            list: document.getElementById('music-list'),
+            nowPlaying: document.getElementById('now-playing'),
+            audio: document.getElementById('audio-player'),
+            // Floating controls
+            mcOverlay: document.getElementById('music-controls'),
+            mcPlayPause: document.getElementById('mc-play-pause'),
+            mcNext: document.getElementById('mc-next'),
+            mcPrev: document.getElementById('mc-prev'),
+            mcRepeat: document.getElementById('mc-repeat')
+        },
+        currentPath: '',
+        playlist: [],
+        currentIndex: -1,
+        repeatMode: 'OFF', // OFF, ONE, FOLDER, ALL
+
+        init: function () {
+            var self = this;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/music/list', true);
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    self.el.btn.classList.remove('hidden');
+                    self.bindEvents();
+                    self.loadDirectory('');
+                }
+            };
+            xhr.onerror = function () {
+                log('Music player not available');
+            };
+            xhr.send();
+        },
+
+        bindEvents: function () {
+            var self = this;
+
+            this.el.btn.addEventListener('click', function () { self.show(); });
+            this.el.closeBtn.addEventListener('click', function () { self.hide(); });
+
+            this.el.shuffleAllBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                self.shuffleAll();
+            });
+
+            this.el.audio.addEventListener('play', function () {
+                var src = self.el.audio.currentSrc;
+                var filename = decodeURIComponent(src.split('/').pop());
+                self.el.nowPlaying.textContent = 'Playing: ' + filename;
+                self.el.mcPlayPause.textContent = '⏸';
+                self.el.mcOverlay.classList.remove('hidden');
+                self.moveMusicControls();
+            });
+
+            this.el.audio.addEventListener('pause', function () {
+                self.el.mcPlayPause.textContent = '▶️';
+            });
+
+            this.el.audio.addEventListener('ended', function () {
+                self.handleTrackEnded();
+            });
+
+            this.el.mcPlayPause.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (self.el.audio.paused) self.el.audio.play();
+                else self.el.audio.pause();
+            });
+
+            this.el.mcNext.addEventListener('click', function (e) { e.stopPropagation(); self.nextTrack(); });
+            this.el.mcPrev.addEventListener('click', function (e) { e.stopPropagation(); self.prevTrack(); });
+            this.el.mcRepeat.addEventListener('click', function (e) { e.stopPropagation(); self.cycleRepeatMode(); });
+        },
+
+        show: function () { this.el.overlay.classList.remove('hidden'); },
+        hide: function () { this.el.overlay.classList.add('hidden'); },
+
+        loadDirectory: function (path) {
+            var self = this;
+            this.currentPath = path;
+            this.updateBreadcrumb(path);
+
+            var xhr = new XMLHttpRequest();
+            var url = '/api/music/list?path=' + encodeURIComponent(path);
+            xhr.open('GET', url, true);
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        self.playlist = data.files || [];
+                        self.renderList(data);
+                    } catch (e) {
+                        self.el.list.innerHTML = '<div class="err">Error parsing list</div>';
+                    }
+                } else {
+                    self.el.list.innerHTML = '<div class="err">Failed to load directory</div>';
+                }
+            };
+            xhr.send();
+        },
+
+        shuffleAll: function () {
+            var self = this;
+            this.el.nowPlaying.textContent = 'Searching library...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/music/list?recursive=true', true);
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (data.files && data.files.length > 0) {
+                            self.playlist = shuffleArray(data.files);
+                            self.playFile(self.playlist[0].path);
+                            self.hide(); // Close overlay to show controls
+                        } else {
+                            alert('No music files found in library.');
+                        }
+                    } catch (e) {
+                        alert('Error shuffing library.');
+                    }
+                }
+            };
+            xhr.send();
+        },
+
+        updateBreadcrumb: function (path) {
+            this.el.breadcrumb.textContent = '/' + (path || '');
+        },
+
+        renderList: function (data) {
+            var self = this;
+            var html = '';
+
+            if (this.currentPath) {
+                var parts = this.currentPath.split('/');
+                parts.pop();
+                var parentPath = parts.join('/');
+                html += '<div class="music-item folder" data-type="back" data-path="' + parentPath + '">';
+                html += '<span class="music-icon">⬅️</span><span>..</span></div>';
+            }
+
+            for (var i = 0; i < data.folders.length; i++) {
+                var folder = data.folders[i];
+                html += '<div class="music-item folder" data-type="folder" data-path="' + folder.path + '">';
+                html += '<span class="music-icon">📁</span><span>' + folder.name + '</span></div>';
+            }
+
+            for (var j = 0; j < data.files.length; j++) {
+                var file = data.files[j];
+                html += '<div class="music-item file" data-type="file" data-path="' + file.path + '">';
+                html += '<span class="music-icon">🎵</span><span>' + file.name + '</span></div>';
+            }
+
+            this.el.list.innerHTML = html || '<div style="padding:15px;color:#aaa;">Folder is empty</div>';
+
+            var items = this.el.list.querySelectorAll('.music-item');
+            for (var k = 0; k < items.length; k++) {
+                (function (item) {
+                    item.addEventListener('click', function () {
+                        var type = item.getAttribute('data-type');
+                        var path = item.getAttribute('data-path');
+                        if (type === 'file') self.playFile(path);
+                        else self.loadDirectory(path);
+                    });
+                })(items[k]);
+            }
+        },
+
+        playFile: function (path) {
+            this.el.audio.src = '/api/music/stream/' + encodeURIComponent(path);
+            this.el.audio.play();
+            for (var i = 0; i < this.playlist.length; i++) {
+                if (this.playlist[i].path === path) {
+                    this.currentIndex = i;
+                    break;
+                }
+            }
+        },
+
+        nextTrack: function () {
+            if (this.playlist.length === 0) return;
+            this.currentIndex = (this.currentIndex + 1) % this.playlist.length;
+            this.playFile(this.playlist[this.currentIndex].path);
+        },
+
+        prevTrack: function () {
+            if (this.playlist.length === 0) return;
+            this.currentIndex = (this.currentIndex - 1 + this.playlist.length) % this.playlist.length;
+            this.playFile(this.playlist[this.currentIndex].path);
+        },
+
+        cycleRepeatMode: function () {
+            var modes = ['OFF', 'ONE', 'FOLDER', 'ALL'];
+            var currentIdx = modes.indexOf(this.repeatMode);
+            this.repeatMode = modes[(currentIdx + 1) % modes.length];
+            var icons = { 'OFF': '🔁 Off', 'ONE': '🔂 One', 'FOLDER': '📂 Fold', 'ALL': '🌍 All' };
+            this.el.mcRepeat.textContent = icons[this.repeatMode];
+        },
+
+        handleTrackEnded: function () {
+            if (this.repeatMode === 'ONE') {
+                this.el.audio.currentTime = 0;
+                this.el.audio.play();
+            } else if (this.repeatMode !== 'OFF') {
+                this.nextTrack();
+            } else {
+                this.el.mcOverlay.classList.add('hidden');
+            }
+        },
+
+        moveMusicControls: function () {
+            var clockPos = {
+                bottom: el.clockOverlay.style.bottom,
+                right: el.clockOverlay.style.right,
+                top: el.clockOverlay.style.top,
+                left: el.clockOverlay.style.left
+            };
+
+            this.el.mcOverlay.style.top = 'auto';
+            this.el.mcOverlay.style.bottom = 'auto';
+            this.el.mcOverlay.style.left = 'auto';
+            this.el.mcOverlay.style.right = 'auto';
+
+            if (clockPos.bottom !== 'auto' && clockPos.bottom !== '') {
+                this.el.mcOverlay.style.bottom = (parseInt(clockPos.bottom) + 110) + 'px';
+            } else if (clockPos.top !== 'auto' && clockPos.top !== '') {
+                this.el.mcOverlay.style.top = (parseInt(clockPos.top) + 110) + 'px';
+            }
+
+            if (clockPos.right !== 'auto' && clockPos.right !== '') {
+                this.el.mcOverlay.style.right = clockPos.right;
+            } else if (clockPos.left !== 'auto' && clockPos.left !== '') {
+                this.el.mcOverlay.style.left = clockPos.left;
+            }
+        }
+    };
 
     // Start
     init();

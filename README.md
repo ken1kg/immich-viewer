@@ -14,6 +14,9 @@ A lightweight, beautiful web-based photo frame viewer for [Immich](https://immic
 - **Manual Navigation:** Swipe (mobile) or Arrow Keys (desktop) to browse photos manually.
 - **Robust NoSleep:** Screen keep-awake functionality.
 - **Resilient Watchdog:** Auto-reloads on network failure or slideshow stalls to ensure maintenance-free operation.
+- **Ambient Music Player:** Play music from your local library (container-mounted) directly through the viewer.
+- **Floating Controls & Burn-in Protection:** Semi-transparent playback controls that move with the clock to prevent screen burn-in.
+- **Advanced Playback:** Support for repeat modes (One, Folder, All) and "Shuffle All" recursive scanning across your entire library.
 - **Lightweight:** No heavy frameworks, minimal network usage.
 
 ## Security & Privacy 🔒
@@ -66,6 +69,11 @@ For the viewer to work correctly, your Immich API Key needs the following permis
     IMMICH_URL=http://192.168.1.100:2283
     IMMICH_API_KEY=your_api_key_here
     ALBUM_ID=your_album_uuid_here
+    
+    # Music Player Settings
+    MUSIC_PLAYER=true
+    MUSIC_PATH=/music
+    HOST_MUSIC_PATH=C:/Path/To/Your/Music
     ```
 
 3.  **Verify `docker-compose.yml` (Optional):**
@@ -78,6 +86,8 @@ For the viewer to work correctly, your Immich API Key needs the following permis
         restart: unless-stopped
         ports:
           - "3000:3000"
+        volumes:
+          - "${HOST_MUSIC_PATH:-./music}:${MUSIC_PATH:-/music}:ro"
         env_file:
           - .env
     ```
@@ -104,6 +114,9 @@ Everything is configured via the `.env` file:
 | `IMAGE_FIT` | Image scaling: `cover` (fills screen) or `contain` (entire image) | `contain` |
 | `PORT` | Port to run the viewer on | `3000` |
 | `DEBUG` | Set to `true` to view proxy logs (warning: may expose API key in logs) | `false` |
+| `MUSIC_PLAYER` | Enable/Disable the music player feature | `false` |
+| `MUSIC_PATH` | Internal container path for music files | `/music` |
+| `HOST_MUSIC_PATH` | Host machine path to your music folder | Required if music enabled |
 
 ## Usage Guide
 

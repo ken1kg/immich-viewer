@@ -39,6 +39,14 @@
             <div id="date">Monday, Jan 1</div>
         </div>
 
+        <!-- Floating Music Controls (Optional, show when playing) -->
+        <div id="music-controls" class="hidden">
+            <button id="mc-prev">⏮</button>
+            <button id="mc-play-pause">⏯</button>
+            <button id="mc-next">⏭</button>
+            <button id="mc-repeat" title="Repeat Mode">🔁 Off</button>
+        </div>
+
         <!-- Loading / Status Overlay -->
         <div id="status-overlay">
             <div class="loader"></div>
@@ -65,6 +73,28 @@
             <button id="fs-btn">Fullscreen</button>
             <button id="refresh-btn">Refresh</button>
             <button id="nosleep-btn">Prevent Sleep</button>
+            <button id="music-btn" class="hidden">Music</button>
+        </div>
+
+        <!-- Music Player Overlay -->
+        <div id="music-overlay" class="overlay hidden">
+            <div class="overlay-content">
+                <div class="music-header">
+                    <h3>Music Library</h3>
+                    <div class="music-header-controls">
+                        <button id="shuffle-all-btn" title="Shuffle All Music">🔀 All</button>
+                        <button id="close-music">✕</button>
+                    </div>
+                </div>
+                <div id="music-breadcrumb" class="breadcrumb">/</div>
+                <div id="music-list" class="music-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+                <div class="music-player-bar">
+                    <div id="now-playing">No song playing</div>
+                    <audio id="audio-player" controls preload="metadata"></audio>
+                </div>
+            </div>
         </div>
 
         <!-- NoSleep Helper: Tiny, silent, looping video -->

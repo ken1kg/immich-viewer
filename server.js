@@ -33,7 +33,42 @@ const config = {
         transition: process.env.TRANSITION || 'fade',
         imageFit: process.env.IMAGE_FIT || 'cover',
         albumId: process.env.ALBUM_ID || ''
+    },
+    musicPath: process.env.MUSIC_PATH || ''
+};
+
+// Music player configuration
+const MUSIC_ENABLED = process.env.MUSIC_PLAYER === 'true' && config.musicPath && fs.existsSync(config.musicPath);
+const SUPPORTED_AUDIO = ['.mp3', '.m4a', '.wav', '.flac'];
+const MAX_DEPTH = 10;
+
+// Helper: Sanitize path to prevent directory traversal
+function sanitizeMusicPath(requestedPath) {
+    // If empty, return the root music path
+    if (!requestedPath) return config.musicPath;
+
+    // Normalize and resolve the path
+    const normalized = path.normalize(requestedPath).replace(/^(\.\.[\\/\\])+/, '');
+    const resolved = path.resolve(config.musicPath, normalized);
+
+    // Ensure it's within MUSIC_PATH
+    if (!resolved.startsWith(config.musicPath)) {
+        throw new Error('Path traversal attempt detected');
     }
+
+    return resolved;
+}
+
+// Helper: Get MIME type for audio files
+function getAudioMimeType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+        '.mp3': 'audio/mpeg',
+        '.m4a': 'audio/mp4',
+        '.wav': 'audio/wav',
+        '.flac': 'audio/flac'
+    };
+    return mimeTypes[ext] || 'application/octet-stream';
 };
 
 // Check for required config
@@ -122,6 +157,142 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
     proxyReq.end();
 });
 
+// Music API: List folders and files
+app.get('/api/music/list', apiLimiter, (req, res) => {
+    if (!MUSIC_ENABLED) {
+        return res.status(404).json({ error: 'Music player not enabled' });
+    }
+
+    try {
+        const recursive = req.query.recursive === 'true';
+
+        if (recursive) {
+            const allFiles = [];
+
+            function scan(currentPath) {
+                const items = fs.readdirSync(currentPath);
+                for (const item of items) {
+                    const fullItemPath = path.join(currentPath, item);
+                    const stats = fs.statSync(fullItemPath);
+                    if (stats.isDirectory()) {
+                        scan(fullItemPath);
+                    } else if (stats.isFile()) {
+                        const ext = path.extname(item).toLowerCase();
+                        if (SUPPORTED_AUDIO.includes(ext)) {
+                            allFiles.push({
+                                name: item,
+                                path: path.relative(config.musicPath, fullItemPath),
+                                size: stats.size
+                            });
+                        }
+                    }
+                }
+            }
+
+            scan(config.musicPath);
+            return res.json({ folders: [], files: allFiles });
+        }
+
+        const requestedPath = req.query.path || '';
+        const fullPath = sanitizeMusicPath(requestedPath);
+
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ error: 'Path not found' });
+        }
+
+        const items = fs.readdirSync(fullPath);
+        const folders = [];
+        const files = [];
+
+        for (const item of items) {
+            const itemPath = path.join(fullPath, item);
+            const stats = fs.statSync(itemPath);
+            const relativePath = path.relative(config.musicPath, itemPath);
+
+            if (stats.isDirectory()) {
+                folders.push({
+                    name: item,
+                    path: relativePath
+                });
+            } else if (stats.isFile()) {
+                const ext = path.extname(item).toLowerCase();
+                if (SUPPORTED_AUDIO.includes(ext)) {
+                    files.push({
+                        name: item,
+                        path: relativePath,
+                        size: stats.size
+                    });
+                }
+            }
+        }
+
+        res.json({ folders, files });
+    } catch (error) {
+        if (DEBUG) console.error('Music list error:', error);
+        res.status(400).json({ error: 'Invalid operation' });
+    }
+});
+
+// Music API: Stream audio file with range support
+app.get('/api/music/stream/*', apiLimiter, (req, res) => {
+    if (!MUSIC_ENABLED) {
+        return res.status(404).send('Music player not enabled');
+    }
+
+    try {
+        // Extract file path from URL
+        const requestedFile = req.params[0];
+        const fullPath = sanitizeMusicPath(requestedFile);
+
+        // Verify file exists and is supported
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).send('File not found');
+        }
+
+        const ext = path.extname(fullPath).toLowerCase();
+        if (!SUPPORTED_AUDIO.includes(ext)) {
+            return res.status(400).send('Unsupported file type');
+        }
+
+        const stats = fs.statSync(fullPath);
+        const fileSize = stats.size;
+        const mimeType = getAudioMimeType(fullPath);
+
+        // Handle Range requests (for seeking/scrubbing)
+        const range = req.headers.range;
+
+        if (range) {
+            const parts = range.replace(/bytes=/, '').split('-');
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            const chunkSize = (end - start) + 1;
+
+            res.writeHead(206, {
+                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': chunkSize,
+                'Content-Type': mimeType
+            });
+
+            const stream = fs.createReadStream(fullPath, { start, end });
+            stream.pipe(res);
+        } else {
+            // Full file
+            res.writeHead(200, {
+                'Content-Length': fileSize,
+                'Content-Type': mimeType,
+                'Accept-Ranges': 'bytes'
+            });
+
+            const stream = fs.createReadStream(fullPath);
+            stream.pipe(res);
+        }
+    } catch (error) {
+        if (DEBUG) console.error('Music stream error:', error);
+        res.status(400).send('Invalid request');
+    }
+});
+
 // Serve static files BUT exclude index.html from auto-serving so we can template it
 // We serve everything else from public directly
 app.use(express.static('public', { index: false }));
@@ -161,4 +332,5 @@ app.listen(PORT, () => {
     console.log(`Immich Legacy Viewer running on http://localhost:${PORT}`);
     console.log(`Target Immich Server: ${config.immichUrl}`);
     console.log(`ALBUM_ID: ${config.settings.albumId || '(Showing Favorites)'}`);
+    console.log(`Music Player: ${MUSIC_ENABLED ? `Enabled (${config.musicPath})` : 'Disabled'}`);
 });

@@ -7,3 +7,7 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    # Optional: Mount your music directory (SMB share must be mounted to host first)
+    # The host path is defined in your .env file as HOST_MUSIC_PATH
+    volumes:
+      - ${HOST_MUSIC_PATH:-./music}:${MUSIC_PATH:-/music}:ro
