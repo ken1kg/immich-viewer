@@ -17,7 +17,8 @@ A lightweight, beautiful web-based photo frame viewer for [Immich](https://immic
 - **Ambient Music Player:** Play music from your local library (container-mounted) directly through the viewer.
 - **Floating Controls & Burn-in Protection:** Semi-transparent playback controls that move with the clock to prevent screen burn-in.
 - **Smart Shuffle Toggle:** Support toggle between sequential and randomized playback on the fly with sequential mode restore to the next chronological track.
-- **Advanced Playback:** Support for repeat modes (One, Loop, Off) and "Shuffle Folder/All" scanning.
+- **Recursive Folder Shuffle:** "Shuffle Folder" scans all subdirectories of the current folder for a complete mix.
+- **Advanced Playback:** Support for repeat modes (One, Loop, Off) and "Shuffle All" scanning.
 - **Independent Playback State:** Browse through your folders without interrupting the current playing list.
 - **Lightweight:** No heavy frameworks, minimal network usage.
 

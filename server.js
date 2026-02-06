@@ -165,6 +165,12 @@ app.get('/api/music/list', apiLimiter, (req, res) => {
 
     try {
         const recursive = req.query.recursive === 'true';
+        const requestedPath = req.query.path || '';
+        const fullPath = sanitizeMusicPath(requestedPath);
+
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({ error: 'Path not found' });
+        }
 
         if (recursive) {
             const allFiles = [];
@@ -181,7 +187,7 @@ app.get('/api/music/list', apiLimiter, (req, res) => {
                         if (SUPPORTED_AUDIO.includes(ext)) {
                             allFiles.push({
                                 name: item,
-                                path: path.relative(config.musicPath, fullItemPath),
+                                path: path.relative(config.musicPath, fullItemPath), // Keep relative to ROOT music folder
                                 size: stats.size
                             });
                         }
@@ -189,15 +195,8 @@ app.get('/api/music/list', apiLimiter, (req, res) => {
                 }
             }
 
-            scan(config.musicPath);
+            scan(fullPath);
             return res.json({ folders: [], files: allFiles });
-        }
-
-        const requestedPath = req.query.path || '';
-        const fullPath = sanitizeMusicPath(requestedPath);
-
-        if (!fs.existsSync(fullPath)) {
-            return res.status(404).json({ error: 'Path not found' });
         }
 
         const items = fs.readdirSync(fullPath);

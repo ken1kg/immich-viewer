@@ -610,13 +610,32 @@
         },
 
         shuffleCurrentFolder: function () {
-            if (this.browsingFiles.length === 0) return;
-            this.originalPlaylist = JSON.parse(JSON.stringify(this.browsingFiles));
-            this.playingPlaylist = shuffleArray(JSON.parse(JSON.stringify(this.browsingFiles)));
-            this.shuffleActive = true;
-            this.updateShuffleUI();
-            this.playIndex(0);
-            this.hide();
+            var self = this;
+            this.el.nowPlaying.textContent = 'Searching folder...';
+
+            var xhr = new XMLHttpRequest();
+            var url = '/api/music/list?recursive=true&path=' + encodeURIComponent(this.currentPath);
+            xhr.open('GET', url, true);
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (data.files && data.files.length > 0) {
+                            self.originalPlaylist = JSON.parse(JSON.stringify(data.files));
+                            self.playingPlaylist = shuffleArray(JSON.parse(JSON.stringify(data.files)));
+                            self.shuffleActive = true;
+                            self.updateShuffleUI();
+                            self.playIndex(0);
+                            self.hide();
+                        } else {
+                            alert('No music files found in this folder or subfolders.');
+                        }
+                    } catch (e) {
+                        alert('Error shuffling folder.');
+                    }
+                }
+            };
+            xhr.send();
         },
 
         shuffleAll: function () {
