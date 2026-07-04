@@ -112,10 +112,14 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
     // Our proxy mounts at /api/proxy, so req.url is /albums/... or /asset/...
 
     let baseUrl = config.immichUrl;
-    // Smart fix: If URL doesn't end in /api, append it because we are hitting API endpoints
-    if (!baseUrl.endsWith('/api')) {
+    // Append /api only if the user hasn't already included it in IMMICH_URL
+    // e.g. http://192.168.1.100:2283 → http://192.168.1.100:2283/api
+    // but  http://192.168.1.100:2283/api → unchanged (avoid doubling to /api/api)
+    if (!baseUrl.endsWith('/api') && !baseUrl.includes('/api/')) {
         baseUrl += '/api';
     }
+    // Strip trailing /api if IMMICH_URL was given as http://host/api/ (with slash)
+    baseUrl = baseUrl.replace(/\/api\/$/, '/api');
 
     const targetUrl = baseUrl + normalizedPath;
 
@@ -126,17 +130,24 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
     }
 
     const parsedUrl = url.parse(targetUrl);
+    // Build headers, only include content-type/content-length for POST requests
+    // Sending undefined headers to Node http.request can cause upstream rejections
+    var proxyHeaders = {
+        'Accept': 'application/json',
+        'x-api-key': config.apiKey
+    };
+    if (req.method === 'POST') {
+        proxyHeaders['content-type'] = req.headers['content-type'] || 'application/json';
+        if (req.headers['content-length']) {
+            proxyHeaders['content-length'] = req.headers['content-length'];
+        }
+    }
     const options = {
         hostname: parsedUrl.hostname,
         port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
         path: parsedUrl.path,
         method: req.method,
-        headers: {
-            'Accept': 'application/json',
-            'x-api-key': config.apiKey,
-            'content-type': req.headers['content-type'],
-            'content-length': req.headers['content-length']
-        }
+        headers: proxyHeaders
     };
 
     const requestModule = parsedUrl.protocol === 'https:' ? https : http;

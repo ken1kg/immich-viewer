@@ -52,11 +52,15 @@ For the viewer to work correctly, your Immich API Key needs the following permis
 | Permission | Reason |
 | :--- | :--- |
 | **Album Read** | Required to list the photos inside the album(s) you select. |
+| **Asset Read** | Required by `POST /search/metadata` to query assets. **This is the key permission for album and favorites fetching.** |
 | **Asset View** | Required to view photo details and thumbnails. |
 | **Asset Download** | Required to fetch the full-quality original images. |
 
 > [!TIP]
 > Go to **Immich Admin > Settings > API Keys** to generate a new key. We recommend creating a dedicated "Viewer" key with **only** these read-only permissions.
+
+> [!IMPORTANT]
+> When creating your API key in Immich, make sure **Asset Read** is explicitly checked. Without it, the `POST /search/metadata` call used to fetch album contents will return **403 Forbidden**.
 
 ### Quick Start (Docker)
 
@@ -69,6 +73,7 @@ For the viewer to work correctly, your Immich API Key needs the following permis
 2.  **Configure environment:**
     Create a file named `.env` in the project folder and add your details:
     ```bash
+    # The URL of your Immich server. Do NOT include /api at the end.
     IMMICH_URL=http://192.168.1.100:2283
     IMMICH_API_KEY=your_api_key_here
     ALBUM_ID=your_album_uuid_here
@@ -151,6 +156,15 @@ You can manually browse photos at any time. The auto-advance timer will reset af
 - **"Connecting..." Stuck Forever:**
     - Check `IMMICH_URL` connectivity from the server.
     - Check `IMMICH_API_KEY` permissions.
+    - **Important:** `IMMICH_URL` should be the base server URL **without** a trailing `/api`. Example: `http://192.168.1.100:2283` (not `http://192.168.1.100:2283/api`).
+
+- **403 Forbidden on Album or Favorites:**
+    - Your API key is missing the **Asset Read** permission. Go to Immich → Account Settings → API Keys, edit your key, and ensure **Asset Read** is enabled.
+    - Verify the `ALBUM_ID` UUIDs in your `.env` are correct. You can find them in the Immich web UI under the album's Share URL.
+
+- **"No images found in any provided albums":**
+    - Enable `DEBUG=true` in your `.env` and check the container logs (`docker-compose logs -f`) to see the exact target URL and upstream response.
+    - Ensure your album contains at least one `IMAGE` asset (videos are not displayed).
 
 - **Button says "Err: AbortError":**
     - This is normal if you toggle "Prevent Sleep" off quickly. It means the video start was cancelled.
