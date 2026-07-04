@@ -102,16 +102,24 @@
             }
         }
 
-        function fetchUrl(url) {
+        function fetchUrl(url, method, body) {
             var xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
+            xhr.open(method || 'GET', url, true);
+            if (method === 'POST') {
+                xhr.setRequestHeader('Content-Type', 'application/json');
+            }
             xhr.onload = function () {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         var data = JSON.parse(xhr.responseText);
                         var assets = [];
-                        if (data.assets) assets = data.assets;
-                        else if (Array.isArray(data)) assets = data;
+                        if (data.assets && Array.isArray(data.assets.items)) {
+                            assets = data.assets.items;
+                        } else if (data.assets && Array.isArray(data.assets)) {
+                            assets = data.assets;
+                        } else if (Array.isArray(data)) {
+                            assets = data;
+                        }
 
                         var images = assets.filter(function (asset) {
                             return asset.type === 'IMAGE';
@@ -135,17 +143,23 @@
                 handleNetworkError();
                 checkDone();
             };
-            xhr.send();
+            xhr.send(body ? JSON.stringify(body) : null);
         }
 
         if (albumIds.length > 0) {
             for (var i = 0; i < albumIds.length; i++) {
                 log('Fetching album: ' + albumIds[i]);
-                fetchUrl('/api/proxy/albums/' + albumIds[i]);
+                fetchUrl('/api/proxy/search/metadata', 'POST', {
+                    albumIds: [albumIds[i]],
+                    size: 1000
+                });
             }
         } else {
             log('Fetching favorites (default)');
-            fetchUrl('/api/proxy/asset?take=100&isFavorite=true');
+            fetchUrl('/api/proxy/search/metadata', 'POST', {
+                isFavorite: true,
+                size: 100
+            });
         }
     }
 

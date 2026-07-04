@@ -83,11 +83,6 @@ if (config.immichUrl.endsWith('/')) {
 
 // Proxy Endpoint for Immich API
 app.use('/api/proxy', apiLimiter, (req, clientRes) => {
-    // 1. Security: Only allow GET and HEAD requests
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-        return clientRes.status(405).json({ error: 'Method Not Allowed', details: 'Only GET requests are allowed for security.' });
-    }
-
     // Normalize path to resolve '..' segments
     // Use posix to ensure forward slashes, essential for URL path matching
     const normalizedPath = path.posix.normalize(req.url);
@@ -98,12 +93,17 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
     }
 
     // 2. Security: Whitelist allowed endpoints
-    // Allowed: /albums/*, /asset/*, /assets/* (new API)
-    const allowedPrefixes = ['/albums', '/asset', '/assets'];
+    // Allowed: /albums/*, /asset/*, /assets/*, /search/*
+    const allowedPrefixes = ['/albums', '/asset', '/assets', '/search'];
     const isAllowed = allowedPrefixes.some(prefix => normalizedPath.startsWith(prefix));
 
     if (!isAllowed) {
         return clientRes.status(403).json({ error: 'Forbidden', details: 'Endpoint not allowed by proxy whitelist.' });
+    }
+
+    // 1. Security: Only allow GET, HEAD, and POST for search endpoints
+    if (req.method !== 'GET' && req.method !== 'HEAD' && !(req.method === 'POST' && normalizedPath.startsWith('/search'))) {
+        return clientRes.status(405).json({ error: 'Method Not Allowed', details: 'Only GET/HEAD and POST /search are allowed.' });
     }
 
     // Construct target URL
@@ -133,7 +133,9 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
         method: req.method,
         headers: {
             'Accept': 'application/json',
-            'x-api-key': config.apiKey
+            'x-api-key': config.apiKey,
+            'content-type': req.headers['content-type'],
+            'content-length': req.headers['content-length']
         }
     };
 
@@ -154,7 +156,7 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
         clientRes.status(502).json({ error: 'Bad Gateway' });
     });
 
-    proxyReq.end();
+    req.pipe(proxyReq);
 });
 
 // Music API: List folders and files
