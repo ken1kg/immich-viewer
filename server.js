@@ -156,7 +156,11 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
         clientRes.status(502).json({ error: 'Bad Gateway' });
     });
 
-    req.pipe(proxyReq);
+    if (req.method === 'POST') {
+        req.pipe(proxyReq);
+    } else {
+        proxyReq.end();
+    }
 });
 
 // Music API: List folders and files

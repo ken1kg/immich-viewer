@@ -26,8 +26,8 @@ A lightweight, beautiful web-based photo frame viewer for [Immich](https://immic
 
 This project implements a **secure proxy architecture** to protect your Immich instance, designed specifically for local network usage:
 
-1.  **Strict Method Restriction:** The proxy *only* allows `GET` requests. All write/delete operations are blocked.
-2.  **Endpoint Whitelisting:** Proxying is strictly limited to `/albums` and `/asset` paths.
+1.  **Strict Method Restriction:** The proxy allows `GET` and `HEAD` requests, and `POST` requests exclusively for `/search` endpoints. All write/delete operations (e.g., delete photos, create albums) are blocked.
+2.  **Endpoint Whitelisting:** Proxying is strictly limited to `/albums`, `/asset`, `/assets`, and `/search` paths.
 3.  **Server-Side API Key:** Your API key is stored safely on the server and never exposed to the client browser.
 4.  **Rate Limiting:** Protects against DoS attacks (500 requests / 15 mins).
 5.  **Privacy:** No external calls. Everything runs locally on your network.
