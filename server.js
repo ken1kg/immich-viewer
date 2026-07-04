@@ -156,15 +156,30 @@ app.use('/api/proxy', apiLimiter, (req, clientRes) => {
         if (DEBUG) {
             console.log(`[Proxy] Upstream Status: ${proxyRes.statusCode}`);
         }
-        // Forward status and headers
-        clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
+
+        // Handle Immich 301/302 redirects (common for /original on some versions)
+        if ((proxyRes.statusCode === 301 || proxyRes.statusCode === 302) && proxyRes.headers.location) {
+            if (!clientRes.headersSent) {
+                clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
+                clientRes.end();
+            }
+            return;
+        }
+
+        // Forward status and headers from upstream
+        if (!clientRes.headersSent) {
+            clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
+        }
         proxyRes.pipe(clientRes);
     });
 
     proxyReq.on('error', (e) => {
         console.error(`Proxy Error: ${e.message}`);
-        // Sanitize error to prevent leaking internal details
-        clientRes.status(502).json({ error: 'Bad Gateway' });
+        // Guard against double-sending headers (ERR_HTTP_HEADERS_SENT)
+        if (!clientRes.headersSent) {
+            clientRes.writeHead(502, { 'Content-Type': 'application/json' });
+            clientRes.end(JSON.stringify({ error: 'Bad Gateway' }));
+        }
     });
 
     if (req.method === 'POST') {
