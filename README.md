@@ -3,7 +3,7 @@
 > [!IMPORTANT]
 > **Disclaimer:** This project is an independent community creation and is **not affiliated with, endorsed by, or connected to the official Immich project**.
 >
-> This project was developed with the assistance of **Google Antigravity**. As an AI-assisted creation, there may be occasional "hiccups" or oversights in code and documentation.
+> This project was developed with the assistance of AI. As an AI-assisted creation, there may be occasional "hiccups" or oversights in code and documentation.
 
 A lightweight, beautiful web-based photo frame viewer for [Immich](https://immich.app) designed specifically for legacy devices like the iPad 2 or iPad Mini (iOS 9-12). You can also use it for newer devices if you prefer a simpler interface. It is a great way to repurpose old tablets and phones into digital photo frames.
 
