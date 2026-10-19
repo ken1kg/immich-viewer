@@ -32,6 +32,7 @@ const config = {
         interval: parseInt(process.env.INTERVAL) || 15,
         transition: process.env.TRANSITION || 'fade',
         imageFit: process.env.IMAGE_FIT || 'cover',
+        imageQuality: process.env.IMAGE_QUALITY === 'original' ? 'original' : 'preview',
         albumId: process.env.ALBUM_ID || ''
     },
     musicPath: process.env.MUSIC_PATH || ''

@@ -13,7 +13,9 @@ A lightweight, beautiful web-based photo frame viewer for [Immich](https://immic
 - **Ambient Background:** Automatically blurred, color-matched backgrounds for photos (replaces black bars).
 - **Manual Navigation:** Swipe (mobile) or Arrow Keys (desktop) to browse photos manually.
 - **Robust NoSleep:** Screen keep-awake functionality.
-- **Resilient Watchdog:** Auto-reloads on network failure or slideshow stalls to ensure maintenance-free operation.
+- **Resilient Watchdog:** Auto-reloads on network failure or slideshow stalls to ensure maintenance-free operation. Photos that can't be loaded are skipped automatically.
+- **Low-Memory Friendly:** Shows Immich's resized preview images by default (falls back to the original if a preview is missing), so 1GB devices like the iPad Mini 2 stay stable.
+- **Auto-Updating Library:** Large albums are fully loaded (paged), and newly added photos are picked up hourly without a reload.
 - **Ambient Music Player:** Play music from your local library (container-mounted) directly through the viewer.
 - **Floating Controls & Burn-in Protection:** Semi-transparent playback controls that move with the clock to prevent screen burn-in.
 - **Smart Shuffle Toggle:** Support toggle between sequential and randomized playback on the fly with sequential mode restore to the next chronological track.
@@ -120,6 +122,7 @@ Everything is configured via the `.env` file:
 | `INTERVAL` | Time in seconds between slides | `15` |
 | `TRANSITION` | Transition effect: `fade` or `none` | `fade` |
 | `IMAGE_FIT` | Image scaling: `cover` (fills screen) or `contain` (entire image) | `contain` |
+| `IMAGE_QUALITY` | `preview`: Immich's resized JPEG (~1440px), light on memory and works on old Safari. `original`: full-resolution file (may crash low-RAM devices, HEIC won't display on old iOS) | `preview` |
 | `PORT` | Port to run the viewer on | `3000` |
 | `DEBUG` | Set to `true` to view proxy logs (warning: may expose API key in logs) | `false` |
 | `MUSIC_PLAYER` | Enable/Disable the music player feature | `false` |
@@ -165,6 +168,9 @@ You can manually browse photos at any time. The auto-advance timer will reset af
 - **"No images found in any provided albums":**
     - Enable `DEBUG=true` in your `.env` and check the container logs (`docker-compose logs -f`) to see the exact target URL and upstream response.
     - Ensure your album contains at least one `IMAGE` asset (videos are not displayed).
+
+- **Slideshow requests every photo twice / loads slowly:**
+    - The viewer expects Immich previews in **JPEG** (the Immich default). If you changed *Administration → Settings → Image Settings → Preview format* to WebP, old Safari can't show it and the viewer falls back to the original file for every photo. Switch it back to JPEG, or set `IMAGE_QUALITY=original`.
 
 - **Button says "Err: AbortError":**
     - This is normal if you toggle "Prevent Sleep" off quickly. It means the video start was cancelled.
