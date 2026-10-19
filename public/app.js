@@ -13,6 +13,7 @@
         transition: (serverConfig.transition) || 'fade',
         albumId: (serverConfig.albumId) || '',
         imageFit: (serverConfig.imageFit) || 'cover',
+        imageQuality: (serverConfig.imageQuality) || 'preview',
         debug: (serverConfig.debug) === true
     };
 
@@ -25,7 +26,9 @@
         slideA: null,
         slideB: null,
         activeSlide: 'a', // 'a' or 'b'
-        timer: null
+        timer: null,
+        loadToken: 0,  // Identifies the latest image load request
+        failedInRow: 0 // Consecutive images that failed to load
     };
 
     // DOM Elements
@@ -78,98 +81,126 @@
 
     // --- API Interaction (XMLHttpRequest for legacy support) ---
 
-    function fetchAssets(callback) {
+    var PAGE_SIZE = 1000;          // Immich max page size for /search/metadata
+    var MAX_PAGES = 20;            // Per album / favorites. Bounds memory on 1GB devices
+    var REFRESH_MS = 60 * 60 * 1000; // Check for newly added photos every hour
+
+    // silent: background refresh - never shows errors or triggers the network watchdog
+    function fetchAssets(silent, onSuccess, onFail) {
         var albumIds = CONFIG.albumId ? CONFIG.albumId.split(',') : [];
         // Clean up whitespace
         albumIds = albumIds.map(function (id) { return id.trim(); }).filter(function (id) { return id.length > 0; });
 
+        // Each source is one album, or Favorites when no albums are configured
+        var sources = [];
+        for (var i = 0; i < albumIds.length; i++) {
+            sources.push({ albumIds: [albumIds[i]] });
+        }
+        if (sources.length === 0) sources.push({ isFavorite: true });
+
+        // Keep only asset ids - full asset objects for thousands of photos waste memory
         var allAssets = [];
-        var completedRequests = 0;
-        var totalRequests = albumIds.length; // 0 if favs
+        var seen = {};
+        var completedSources = 0;
 
-        // If no albums, defaults to 1 request (Favorites)
-        if (totalRequests === 0) totalRequests = 1;
-
-        function checkDone() {
-            completedRequests++;
-            if (completedRequests >= totalRequests) {
+        function sourceDone() {
+            completedSources++;
+            if (completedSources >= sources.length) {
                 if (allAssets.length === 0) {
-                    showError('No images found in any provided albums.', true);
-                    handleNetworkError();
+                    onFail();
                 } else {
-                    callback(allAssets);
+                    onSuccess(allAssets);
                 }
             }
         }
 
-        function fetchUrl(url, method, body) {
+        function fetchPage(source, page) {
+            var body = { size: PAGE_SIZE };
+            if (source.albumIds) body.albumIds = source.albumIds;
+            if (source.isFavorite) body.isFavorite = true;
+            if (page > 1) body.page = page;
+
+            var url = '/api/proxy/search/metadata';
             var xhr = new XMLHttpRequest();
-            xhr.open(method || 'GET', url, true);
-            if (method === 'POST') {
-                xhr.setRequestHeader('Content-Type', 'application/json');
-            }
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
             xhr.onload = function () {
                 if (xhr.status >= 200 && xhr.status < 300) {
+                    var data;
                     try {
-                        var data = JSON.parse(xhr.responseText);
-                        var assets = [];
-                        if (data.assets && Array.isArray(data.assets.items)) {
-                            assets = data.assets.items;
-                        } else if (data.assets && Array.isArray(data.assets)) {
-                            assets = data.assets;
-                        } else if (Array.isArray(data)) {
-                            assets = data;
-                        }
-
-                        var images = assets.filter(function (asset) {
-                            return asset.type === 'IMAGE';
-                        });
-
-                        allAssets = allAssets.concat(images);
+                        data = JSON.parse(xhr.responseText);
                     } catch (e) {
-                        showError('JSON Parse Error: ' + e.message, true);
                         console.error(e);
-                        handleNetworkError();
+                        if (!silent) {
+                            showError('JSON Parse Error: ' + e.message, true);
+                            handleNetworkError();
+                        }
+                        sourceDone();
+                        return;
+                    }
+
+                    var assets = [];
+                    if (data.assets && Array.isArray(data.assets.items)) {
+                        assets = data.assets.items;
+                    } else if (data.assets && Array.isArray(data.assets)) {
+                        assets = data.assets;
+                    } else if (Array.isArray(data)) {
+                        assets = data;
+                    }
+
+                    for (var j = 0; j < assets.length; j++) {
+                        var asset = assets[j];
+                        if (asset && asset.type === 'IMAGE' && asset.id && !seen[asset.id]) {
+                            seen[asset.id] = true;
+                            allAssets.push({ id: asset.id });
+                        }
+                    }
+
+                    var nextPage = data.assets && data.assets.nextPage;
+                    if (nextPage && page < MAX_PAGES) {
+                        log('Fetching page ' + (page + 1));
+                        fetchPage(source, parseInt(nextPage, 10) || page + 1);
+                    } else {
+                        sourceDone();
                     }
                 } else {
                     console.error('Server Error ' + xhr.status + ' for ' + url);
                     // Don't show error immediately on partial failure, unless all fail
-                    handleNetworkError();
+                    if (!silent) handleNetworkError();
+                    sourceDone();
                 }
-                checkDone();
             };
             xhr.onerror = function () {
                 console.error('Network error for ' + url);
-                handleNetworkError();
-                checkDone();
+                if (!silent) handleNetworkError();
+                sourceDone();
             };
-            xhr.send(body ? JSON.stringify(body) : null);
+            xhr.send(JSON.stringify(body));
         }
 
-        if (albumIds.length > 0) {
-            for (var i = 0; i < albumIds.length; i++) {
-                log('Fetching album: ' + albumIds[i]);
-                fetchUrl('/api/proxy/search/metadata', 'POST', {
-                    albumIds: [albumIds[i]],
-                    size: 1000
-                });
-            }
-        } else {
-            log('Fetching favorites (default)');
-            fetchUrl('/api/proxy/search/metadata', 'POST', {
-                isFavorite: true,
-                size: 100
-            });
+        for (var k = 0; k < sources.length; k++) {
+            log(sources[k].albumIds ? 'Fetching album: ' + sources[k].albumIds[0] : 'Fetching favorites (default)');
+            fetchPage(sources[k], 1);
         }
     }
 
-    function getAssetUrl(assetId) {
-        // User requested full quality Original asset
-        // Requires 'asset.download' permission
+    function getOriginalUrl(assetId) {
+        // Full quality original. Requires 'asset.download' permission
         return '/api/proxy/assets/' + assetId + '/original';
     }
 
+    function getAssetUrl(assetId) {
+        if (CONFIG.imageQuality === 'original') {
+            return getOriginalUrl(assetId);
+        }
+        // Resized JPEG (~1440px) generated by Immich. Much lighter on memory than
+        // originals and always decodable by old Safari (originals may be HEIC)
+        return '/api/proxy/assets/' + assetId + '/thumbnail?size=preview';
+    }
+
     // --- Slideshow Logic ---
+
+    var MAX_SKIP_CHAIN = 5; // Unloadable images skipped back-to-back before waiting for the next tick
 
     function startSlideshow(assets) {
         state.assets = shuffleArray(assets);
@@ -183,23 +214,59 @@
         setInterval(updateClock, 1000 * 60);
 
         // Initial Slide
-        showSlide(0);
+        showSlide(0, 1);
 
         // Start Timer
+        restartTimer();
+
+        // Pick up photos added to Immich without needing a reload
+        setInterval(refreshAssets, REFRESH_MS);
+    }
+
+    function restartTimer() {
+        if (state.timer) clearInterval(state.timer);
         state.timer = setInterval(function () {
             nextSlide();
         }, CONFIG.interval * 1000);
     }
 
-    function showSlide(index) {
+    // Insert newly added photos right after the current slide so they show up soon.
+    // Deleted photos are left in the list; they fail to load and get skipped.
+    function refreshAssets() {
+        fetchAssets(true, function (assets) {
+            var known = {};
+            for (var i = 0; i < state.assets.length; i++) {
+                known[state.assets[i].id] = true;
+            }
+            var added = assets.filter(function (asset) { return !known[asset.id]; });
+            if (added.length === 0) return;
+
+            // +2 keeps the index of an in-flight next slide unchanged
+            var insertAt = Math.min(state.currentIndex + 2, state.assets.length);
+            state.assets = state.assets.slice(0, insertAt)
+                .concat(shuffleArray(added))
+                .concat(state.assets.slice(insertAt));
+            log('Refresh: added ' + added.length + ' new images');
+        }, function () {
+            log('Refresh: failed or empty, keeping current list');
+        });
+    }
+
+    function showSlide(index, direction) {
         var asset = state.assets[index];
         if (!asset) return;
 
-        var imgUrl = getAssetUrl(asset.id);
+        // Newer requests (e.g. fast swipes) supersede older in-flight loads
+        state.loadToken++;
+        loadSlideImage(index, direction, getAssetUrl(asset.id), state.loadToken, false);
+    }
 
+    function loadSlideImage(index, direction, imgUrl, token, isFallback) {
         // Preload image
         var img = new Image();
         img.onload = function () {
+            if (token !== state.loadToken) return;
+
             // Apply to inactive slide
             var nextSlideEl = state.activeSlide === 'a' ? el.slideB : el.slideA;
             var currentSlideEl = state.activeSlide === 'a' ? el.slideA : el.slideB;
@@ -220,28 +287,46 @@
             // Update state
             state.activeSlide = state.activeSlide === 'a' ? 'b' : 'a';
             state.currentIndex = index;
+            state.failedInRow = 0;
+
+            // Watchdog tick - only on a photo actually shown
+            updateLastSlideTime();
+        };
+        img.onerror = function () {
+            if (token !== state.loadToken) return;
+            var asset = state.assets[index];
+            if (!asset) return;
+
+            // Preview missing or undecodable (e.g. preview format set to WebP) - try the original
+            if (!isFallback && imgUrl !== getOriginalUrl(asset.id)) {
+                log('Preview failed, trying original: ' + asset.id);
+                loadSlideImage(index, direction, getOriginalUrl(asset.id), token, true);
+                return;
+            }
+
+            // Skip it: move past this asset so the next tick doesn't retry it
+            log('Skipping unloadable image: ' + asset.id);
+            state.currentIndex = index;
+            state.failedInRow++;
+            if (state.failedInRow < MAX_SKIP_CHAIN && state.assets.length > 1) {
+                var count = state.assets.length;
+                showSlide((index + direction + count) % count, direction);
+            }
+            // Otherwise wait for the next timer tick; if nothing loads the watchdog reloads
         };
         img.src = imgUrl; // Start loading
     }
 
     function nextSlide() {
+        if (state.assets.length === 0) return;
         var next = (state.currentIndex + 1) % state.assets.length;
-        // Watchdog tick
-        updateLastSlideTime();
-        showSlide(next);
-
-        // Refresh assets occasionally? (e.g. end of cycle)
-        if (next === 0) {
-            // cycle complete, maybe re-shuffle or re-fetch?
-            // For now just loop
-        }
+        showSlide(next, 1);
     }
 
     function prevSlide() {
+        if (state.assets.length === 0) return;
         var prev = (state.currentIndex - 1 + state.assets.length) % state.assets.length;
-        // Watchdog tick
-        updateLastSlideTime();
-        showSlide(prev);
+        showSlide(prev, -1);
     }
 
     // --- Clock ---
@@ -459,9 +544,9 @@
         // Keyboard Navigation
         document.addEventListener('keydown', function (e) {
             if (e.key === 'ArrowRight' || e.key === 'Right') {
-                nextSlide();
+                manualNext();
             } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
-                prevSlide();
+                manualPrev();
             }
         });
 
@@ -485,20 +570,36 @@
             if (Math.abs(diff) > swipeThreshold) {
                 if (diff > 0) {
                     // Swiped left, show next
-                    nextSlide();
+                    manualNext();
                 } else {
                     // Swiped right, show previous
-                    prevSlide();
+                    manualPrev();
                 }
             }
         }
 
-        fetchAssets(function (assets) {
+        fetchAssets(false, function (assets) {
             startSlideshow(assets);
+        }, function () {
+            showError('No images found in any provided albums.', true);
+            handleNetworkError();
         });
 
         // Initialize music player (async check for availability)
         musicPlayer.init();
+    }
+
+    // Manual navigation restarts the auto-advance timer so it doesn't fire right after a swipe
+    function manualNext() {
+        if (state.assets.length === 0) return;
+        nextSlide();
+        restartTimer();
+    }
+
+    function manualPrev() {
+        if (state.assets.length === 0) return;
+        prevSlide();
+        restartTimer();
     }
 
     function updateLastSlideTime() {
